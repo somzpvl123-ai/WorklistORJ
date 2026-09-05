@@ -714,6 +714,60 @@ $('date').value=sel;$('person').value=myName;dur();
 resetTd();renderLog();renderTodo();
 const savedMode=localStorage.getItem('wl.mode');
 if(savedMode==='todo')document.querySelector('.mode[data-v="todo"]').click();
+  /* ============ CLOUD SYNC (Google Sheets) ============ */
+const API_URL = 'วาง_URL_ที่ลงท้าย_exec_ตรงนี้';
+const API_KEY = 'itteam2026';
+let _syncing = false;
+
+function setSt(t) { const el = document.getElementById('syncSt'); if (el) el.textContent = t; }
+function nowHM() { return new Date().toTimeString().slice(0, 5); }
+
+async function pullCloud(silent) {
+  if (!API_URL.startsWith('http')) return;
+  setSt('🟡 กำลังดึง...');
+  try {
+    const r = await fetch(API_URL + '?key=' + API_KEY + '&t=' + Date.now());
+    const j = await r.json();
+    if (j.error) throw new Error(j.error);
+    data  = j.logs  || [];
+    todos = j.todos || [];
+    localStorage.setItem('wl_logs',  JSON.stringify(data));
+    localStorage.setItem('wl_todos', JSON.stringify(todos));
+    if (typeof renderLog  === 'function') renderLog();
+    if (typeof renderTodo === 'function') renderTodo();
+    setSt('🟢 ' + nowHM());
+    if (!silent && typeof toast === 'function') toast('⬇️ ดึงข้อมูลล่าสุดแล้ว');
+  } catch (err) {
+    setSt('🔴 ออฟไลน์');
+    if (!silent && typeof toast === 'function') toast('⚠️ ดึงข้อมูลไม่สำเร็จ');
+  }
+}
+
+async function pushCloud(silent) {
+  if (!API_URL.startsWith('http') || _syncing) return;
+  _syncing = true;
+  setSt('🟡 กำลังอัป...');
+  try {
+    await fetch(API_URL, {
+      method: 'POST',
+      body: JSON.stringify({ key: API_KEY, logs: data, todos: todos })
+    });
+    setSt('🟢 ' + nowHM());
+    if (!silent && typeof toast === 'function') toast('☁️ อัปขึ้นคลาวด์แล้ว');
+  } catch (err) {
+    setSt('🔴 อัปไม่สำเร็จ');
+    if (!silent && typeof toast === 'function') toast('⚠️ อัปไม่สำเร็จ');
+  } finally { _syncing = false; }
+}
+
+// อัปอัตโนมัติทุกครั้งที่บันทึก
+if (typeof saveL === 'function') { const _a = saveL; saveL = function(){ _a(); pushCloud(true); }; }
+if (typeof saveT === 'function') { const _b = saveT; saveT = function(){ _b(); pushCloud(true); }; }
+
+// ดึงตอนเปิดเว็บ + ทุก 60 วิ + ตอนกลับมาที่แท็บ
+window.addEventListener('load', () => pullCloud(true));
+setInterval(() => pullCloud(true), 60000);
+window.addEventListener('focus', () => pullCloud(true));
 </script>
 </body>
 </html>
